@@ -2,7 +2,8 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Трекер слепой печати</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Клавиатурный трекер</title>
 <style>
   :root {
     --paper: #EDEAE2;
@@ -17,6 +18,7 @@
     --kk: #4F7A4A;
     --kk-bg: #E4EEE2;
     --danger: #B3452F;
+    --accent: #23262B;
   }
   * { box-sizing: border-box; }
   body {
@@ -24,9 +26,9 @@
     background: var(--paper);
     color: var(--ink);
     font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
-    padding: 28px 20px 60px;
+    padding: 0 0 70px;
   }
-  .wrap { max-width: 640px; margin: 0 auto; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 20px 20px 0; }
   h1 {
     font-family: 'IBM Plex Mono', 'Courier New', monospace;
     font-size: 22px;
@@ -34,7 +36,26 @@
     letter-spacing: -0.02em;
     margin: 0 0 4px;
   }
-  .sub { color: var(--ink-soft); font-size: 14px; margin: 0 0 24px; }
+  .sub { color: var(--ink-soft); font-size: 14px; margin: 0 0 20px; }
+
+  /* Top nav */
+  .topnav {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--paper);
+    border-bottom: 1px solid var(--keycap-border);
+    padding: 10px 20px;
+    display: flex; gap: 4px; max-width: 640px; margin: 0 auto;
+  }
+  .navbtn {
+    flex: 1; text-align: center; padding: 8px 4px;
+    font-size: 12px; font-weight: 600; color: var(--ink-soft);
+    border-radius: 6px; cursor: pointer; user-select: none;
+    font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .navbtn.active { background: var(--ink); color: #fff; }
+
+  .page { display: none; }
+  .page.active { display: block; padding-top: 18px; }
 
   .keyrow { display: flex; gap: 6px; margin-bottom: 20px; }
   .key {
@@ -78,7 +99,7 @@
   .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
   .field { flex: 1; min-width: 110px; }
   .field label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; }
-  input, select {
+  input, select, textarea {
     width: 100%;
     padding: 8px 10px;
     border: 1px solid var(--keycap-border);
@@ -88,8 +109,9 @@
     background: #fff;
     color: var(--ink);
   }
-  input:focus, select:focus { outline: none; border-color: var(--en); }
-  button.submit {
+  textarea { resize: vertical; min-height: 50px; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--en); }
+  button.submit, button.secondary {
     width: 100%;
     padding: 11px;
     border: none;
@@ -101,8 +123,10 @@
     cursor: pointer;
     margin-top: 4px;
   }
-  button.submit:active { transform: scale(0.99); }
+  button.secondary { background: #fff; color: var(--ink); border: 1px solid var(--keycap-border); }
+  button.submit:active, button.secondary:active { transform: scale(0.99); }
   .error { color: var(--danger); font-size: 12px; margin-top: 4px; display: none; }
+  .hint { color: var(--ink-soft); font-size: 12px; margin-top: 6px; }
 
   .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .stat-box { background: var(--paper); border-radius: 8px; padding: 12px 10px; text-align: center; }
@@ -114,7 +138,7 @@
   .stat-box .small { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
 
   .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
-  .bar-row .d { width: 70px; color: var(--ink-soft); flex-shrink: 0; }
+  .bar-row .d { width: 78px; color: var(--ink-soft); flex-shrink: 0; }
   .bar-track { flex: 1; height: 10px; background: var(--paper); border-radius: 5px; overflow: hidden; }
   .bar-fill { height: 100%; border-radius: 5px; }
   .bar-fill[data-lang="en"] { background: var(--en); }
@@ -123,11 +147,11 @@
   .bar-val { width: 30px; text-align: right; font-family: 'IBM Plex Mono', monospace; flex-shrink: 0; }
 
   .log-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 9px 0; border-bottom: 1px solid var(--paper);
+    padding: 10px 0; border-bottom: 1px solid var(--paper);
     font-size: 13px;
   }
   .log-item:last-child { border-bottom: none; }
+  .log-item-top { display: flex; align-items: center; gap: 10px; }
   .tag {
     font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
     padding: 2px 6px; border-radius: 4px; text-transform: uppercase; flex-shrink: 0;
@@ -138,111 +162,356 @@
   .log-item .meta { flex: 1; color: var(--ink-soft); }
   .log-item .num { font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
   .log-item .del { cursor: pointer; color: var(--ink-soft); font-size: 16px; padding: 0 4px; }
+  .log-item .comment { margin: 6px 0 0 46px; color: var(--ink-soft); font-size: 12px; font-style: italic; }
   .empty { color: var(--ink-soft); font-size: 13px; text-align: center; padding: 20px 0; }
   .loading { color: var(--ink-soft); font-size: 13px; }
+
+  .streak-box { display: flex; align-items: center; gap: 14px; }
+  .streak-num { font-family: 'IBM Plex Mono', monospace; font-size: 34px; font-weight: 700; }
+  .streak-label { color: var(--ink-soft); font-size: 13px; }
+  .streak-flame { font-size: 30px; }
+
+  .goal-progress-track { height: 14px; background: var(--paper); border-radius: 7px; overflow: hidden; margin: 8px 0; }
+  .goal-progress-fill { height: 100%; background: var(--kk); border-radius: 7px; transition: width 0.2s ease; }
+  .goal-text { font-size: 13px; color: var(--ink-soft); }
+
+  .link-row { text-align: center; margin-top: -4px; }
+  .link-row a { color: var(--en); font-size: 13px; text-decoration: none; font-weight: 600; cursor: pointer; }
+
+  .lang-settings-row { display: flex; gap: 6px; }
+  .lang-opt {
+    flex: 1; text-align: center; padding: 10px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--keycap-border); background: #fff; font-size: 14px; font-weight: 600;
+  }
+  .lang-opt.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  .profile-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--paper); font-size: 14px; }
+  .profile-row:last-child { border-bottom: none; }
+  .profile-row .v { font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+  .profile-note { background: var(--en-bg); color: var(--en); border-radius: 8px; padding: 12px; font-size: 12px; margin-top: 10px; }
+
+  .filter-row { display: flex; gap: 6px; margin-bottom: 14px; }
 </style>
 </head>
 <body>
+
+<div class="topnav" id="topnav">
+  <div class="navbtn active" data-page="home" data-i18n="navHome">Главная</div>
+  <div class="navbtn" data-page="history" data-i18n="navHistory">История</div>
+  <div class="navbtn" data-page="settings" data-i18n="navSettings">Настройки</div>
+  <div class="navbtn" data-page="profile" data-i18n="navProfile">Профиль</div>
+</div>
+
 <div class="wrap">
-  <h1>Клавиатурный трекер</h1>
-  <p class="sub">Kaz &middot; Rus &middot; Eng &mdash; слепая печать</p>
+  <h1 data-i18n="appTitle">Клавиатурный трекер</h1>
+  <p class="sub" data-i18n="appSubtitle">Kaz · Rus · Eng — слепая печать</p>
 
-  <div class="card">
-    <h2>Новая тренировка</h2>
-    <div class="keyrow" id="langPicker">
-      <div class="key" data-lang="en">EN</div>
-      <div class="key" data-lang="ru">RU</div>
-      <div class="key" data-lang="kk">KK</div>
+  <!-- HOME PAGE -->
+  <div class="page active" id="page-home">
+
+    <div class="card">
+      <h2 data-i18n="formTitle">Новая тренировка</h2>
+      <div class="keyrow" id="langPicker">
+        <div class="key" data-lang="en">EN</div>
+        <div class="key" data-lang="ru">RU</div>
+        <div class="key" data-lang="kk">KK</div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label data-i18n="labelDate">Дата</label>
+          <input type="date" id="fDate">
+        </div>
+        <div class="field">
+          <label data-i18n="labelSite">Сайт / тренажёр</label>
+          <input type="text" id="fSite" placeholder="keybr, typerun...">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label data-i18n="labelMinutes">Минут</label>
+          <input type="number" id="fMin" placeholder="30" min="1">
+        </div>
+        <div class="field">
+          <label data-i18n="labelWpm">Слов/мин (WPM)</label>
+          <input type="number" id="fWpm" placeholder="25" min="0">
+        </div>
+        <div class="field">
+          <label data-i18n="labelAccuracy">Точность %</label>
+          <input type="number" id="fAcc" placeholder="95" min="0" max="100">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label data-i18n="labelComment">Комментарий (необязательно)</label>
+          <textarea id="fComment" data-i18n-placeholder="placeholderComment" placeholder="Как прошла тренировка?"></textarea>
+        </div>
+      </div>
+      <button class="submit" id="addBtn" data-i18n="btnAdd">Добавить запись</button>
+      <div class="error" id="formError"></div>
     </div>
-    <div class="row">
-      <div class="field">
-        <label>Дата</label>
-        <input type="date" id="fDate">
-      </div>
-      <div class="field">
-        <label>Сайт / тренажёр</label>
-        <input type="text" id="fSite" placeholder="keybr, typerun...">
-      </div>
-    </div>
-    <div class="row">
-      <div class="field">
-        <label>Минут</label>
-        <input type="number" id="fMin" placeholder="30" min="1">
-      </div>
-      <div class="field">
-        <label>Слов/мин (WPM)</label>
-        <input type="number" id="fWpm" placeholder="25" min="0">
-      </div>
-      <div class="field">
-        <label>Точность %</label>
-        <input type="number" id="fAcc" placeholder="95" min="0" max="100">
+
+    <div class="card">
+      <div class="streak-box">
+        <div class="streak-flame" id="streakFlame">🔥</div>
+        <div>
+          <div class="streak-num" id="streakNum">0</div>
+          <div class="streak-label" id="streakLabel" data-i18n="streakDays">дней подряд</div>
+        </div>
       </div>
     </div>
-    <button class="submit" id="addBtn">Добавить запись</button>
-    <div class="error" id="formError"></div>
+
+    <div class="card">
+      <h2 data-i18n="weeklyGoalTitle">Недельная цель</h2>
+      <div id="weeklyGoalContent"><div class="loading" data-i18n="loading">Загрузка...</div></div>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="statsTitle">Итоги по языкам</h2>
+      <div class="stats-grid" id="statsGrid">
+        <div class="loading" data-i18n="loading">Загрузка...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="chartTitle">Прогресс WPM (последние записи)</h2>
+      <div id="barChart"><div class="loading" data-i18n="loading">Загрузка...</div></div>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="recentTitle">Последние записи</h2>
+      <div id="recentList"><div class="loading" data-i18n="loading">Загрузка...</div></div>
+      <div class="link-row"><a data-page-link="history" data-i18n="viewAllHistory">Смотреть всю историю →</a></div>
+    </div>
+
   </div>
 
-  <div class="card">
-    <h2>Итоги по языкам</h2>
-    <div class="stats-grid" id="statsGrid">
-      <div class="loading">Загрузка...</div>
+  <!-- HISTORY PAGE -->
+  <div class="page" id="page-history">
+    <div class="card">
+      <h2 data-i18n="historyTitle">История тренировок</h2>
+      <div class="filter-row" id="historyFilter">
+        <div class="lang-opt active" data-filter="all" data-i18n="filterAll">Все</div>
+        <div class="lang-opt" data-filter="en">EN</div>
+        <div class="lang-opt" data-filter="ru">RU</div>
+        <div class="lang-opt" data-filter="kk">KK</div>
+      </div>
+      <div id="fullLogList"><div class="loading" data-i18n="loading">Загрузка...</div></div>
+    </div>
+    <button class="secondary" id="exportBtn" data-i18n="exportBtn">⬇ Экспорт в JSON</button>
+  </div>
+
+  <!-- SETTINGS PAGE -->
+  <div class="page" id="page-settings">
+    <div class="card">
+      <h2 data-i18n="settingsLanguage">Язык интерфейса</h2>
+      <div class="lang-settings-row" id="uiLangPicker">
+        <div class="lang-opt" data-uilang="ru">Русский</div>
+        <div class="lang-opt" data-uilang="kk">Қазақша</div>
+        <div class="lang-opt" data-uilang="en">English</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 data-i18n="settingsWeeklyGoal">Недельная цель (минут)</h2>
+      <div class="row">
+        <div class="field">
+          <input type="number" id="goalInput" placeholder="150" min="0">
+        </div>
+      </div>
+      <button class="submit" id="saveGoalBtn" data-i18n="settingsSave">Сохранить</button>
+      <div class="hint" id="goalSavedHint" style="display:none" data-i18n="settingsSaved">Сохранено ✓</div>
+    </div>
+    <div class="card">
+      <h2 data-i18n="settingsDataTitle">Данные</h2>
+      <button class="secondary" id="resetBtn" data-i18n="settingsReset">Сбросить все данные</button>
     </div>
   </div>
 
-  <div class="card">
-    <h2>Прогресс WPM (последние записи)</h2>
-    <div id="barChart"><div class="loading">Загрузка...</div></div>
+  <!-- PROFILE PAGE -->
+  <div class="page" id="page-profile">
+    <div class="card">
+      <h2 data-i18n="profileTitle">Профиль</h2>
+      <div id="profileContent"><div class="loading" data-i18n="loading">Загрузка...</div></div>
+      <div class="profile-note" data-i18n="profileSyncNote">Вход через Google и синхронизация между устройствами появятся в следующем обновлении.</div>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>История</h2>
-    <div id="logList"><div class="loading">Загрузка...</div></div>
-  </div>
 </div>
 
 <script>
+/* ===================== I18N ===================== */
+const translations = {
+  ru: {
+    navHome: 'Главная', navHistory: 'История', navSettings: 'Настройки', navProfile: 'Профиль',
+    appTitle: 'Клавиатурный трекер', appSubtitle: 'Kaz · Rus · Eng — слепая печать',
+    formTitle: 'Новая тренировка', labelDate: 'Дата', labelSite: 'Сайт / тренажёр',
+    labelMinutes: 'Минут', labelWpm: 'Слов/мин (WPM)', labelAccuracy: 'Точность %',
+    labelComment: 'Комментарий (необязательно)', placeholderComment: 'Как прошла тренировка?',
+    btnAdd: 'Добавить запись', errorRequired: 'Укажите дату и количество минут',
+    loading: 'Загрузка...',
+    streakDays: 'дней подряд', streakDay1: 'день подряд', streakDaysFew: 'дня подряд',
+    weeklyGoalTitle: 'Недельная цель', weeklyGoalNotSet: 'Цель не задана — настрой её в разделе «Настройки»',
+    weeklyGoalProgress: 'из', weeklyGoalMin: 'мин на этой неделе',
+    statsTitle: 'Итоги по языкам', avgWpmLabel: 'ср. WPM',
+    chartTitle: 'Прогресс WPM (последние записи)',
+    recentTitle: 'Последние записи', viewAllHistory: 'Смотреть всю историю →',
+    historyTitle: 'История тренировок', filterAll: 'Все',
+    exportBtn: '⬇ Экспорт в JSON', emptyHistory: 'Пока нет записей — добавь первую тренировку на главной странице',
+    settingsLanguage: 'Язык интерфейса', settingsWeeklyGoal: 'Недельная цель (минут)',
+    settingsSave: 'Сохранить', settingsSaved: 'Сохранено ✓',
+    settingsDataTitle: 'Данные', settingsReset: 'Сбросить все данные',
+    settingsResetConfirm: 'Точно удалить все записи? Это необратимо.',
+    profileTitle: 'Профиль', profileMemberSince: 'Первая тренировка',
+    profileTotalSessions: 'Всего тренировок', profileTotalMinutes: 'Всего минут',
+    profileNoData: 'Пока нет данных — начни тренироваться на главной странице',
+    profileSyncNote: 'Вход через Google и синхронизация между устройствами появятся в следующем обновлении.',
+    emptyRecent: 'Пока нет записей'
+  },
+  kk: {
+    navHome: 'Басты бет', navHistory: 'Тарих', navSettings: 'Баптаулар', navProfile: 'Профиль',
+    appTitle: 'Пернетақта трекері', appSubtitle: 'Қаз · Орыс · Ағыл — соқыр басу',
+    formTitle: 'Жаңа жаттығу', labelDate: 'Күні', labelSite: 'Сайт / тренажёр',
+    labelMinutes: 'Минут', labelWpm: 'Сөз/мин (WPM)', labelAccuracy: 'Дәлдік %',
+    labelComment: 'Пікір (міндетті емес)', placeholderComment: 'Жаттығу қалай өтті?',
+    btnAdd: 'Жазба қосу', errorRequired: 'Күні мен минут санын көрсетіңіз',
+    loading: 'Жүктелуде...',
+    streakDays: 'күн қатарынан', streakDay1: 'күн қатарынан', streakDaysFew: 'күн қатарынан',
+    weeklyGoalTitle: 'Апталық мақсат', weeklyGoalNotSet: 'Мақсат орнатылмаған — «Баптаулар» бөлімінен орнатыңыз',
+    weeklyGoalProgress: '/', weeklyGoalMin: 'мин осы аптада',
+    statsTitle: 'Тілдер бойынша қорытынды', avgWpmLabel: 'орт. WPM',
+    chartTitle: 'WPM прогресі (соңғы жазбалар)',
+    recentTitle: 'Соңғы жазбалар', viewAllHistory: 'Барлық тарихты көру →',
+    historyTitle: 'Жаттығу тарихы', filterAll: 'Барлығы',
+    exportBtn: '⬇ JSON форматында экспорт', emptyHistory: 'Әзірге жазба жоқ — басты беттен алғашқы жаттығуды қос',
+    settingsLanguage: 'Интерфейс тілі', settingsWeeklyGoal: 'Апталық мақсат (минут)',
+    settingsSave: 'Сақтау', settingsSaved: 'Сақталды ✓',
+    settingsDataTitle: 'Деректер', settingsReset: 'Барлық деректерді тазалау',
+    settingsResetConfirm: 'Барлық жазбаларды өшіресіз бе? Бұл қайтарылмайды.',
+    profileTitle: 'Профиль', profileMemberSince: 'Алғашқы жаттығу',
+    profileTotalSessions: 'Барлық жаттығулар', profileTotalMinutes: 'Барлық минут',
+    profileNoData: 'Әзірге деректер жоқ — басты беттен жаттығуды бастаңыз',
+    profileSyncNote: 'Google арқылы кіру және құрылғылар арасында синхрондау келесі жаңартуда қосылады.',
+    emptyRecent: 'Әзірге жазба жоқ'
+  },
+  en: {
+    navHome: 'Home', navHistory: 'History', navSettings: 'Settings', navProfile: 'Profile',
+    appTitle: 'Keyboard Tracker', appSubtitle: 'Kaz · Rus · Eng — touch typing',
+    formTitle: 'New session', labelDate: 'Date', labelSite: 'Site / trainer',
+    labelMinutes: 'Minutes', labelWpm: 'Words/min (WPM)', labelAccuracy: 'Accuracy %',
+    labelComment: 'Comment (optional)', placeholderComment: 'How did it go?',
+    btnAdd: 'Add entry', errorRequired: 'Please set a date and minutes',
+    loading: 'Loading...',
+    streakDays: 'day streak', streakDay1: 'day streak', streakDaysFew: 'day streak',
+    weeklyGoalTitle: 'Weekly goal', weeklyGoalNotSet: 'No goal set — set one in Settings',
+    weeklyGoalProgress: 'of', weeklyGoalMin: 'min this week',
+    statsTitle: 'Stats by language', avgWpmLabel: 'avg WPM',
+    chartTitle: 'WPM progress (recent entries)',
+    recentTitle: 'Recent entries', viewAllHistory: 'View full history →',
+    historyTitle: 'Training history', filterAll: 'All',
+    exportBtn: '⬇ Export to JSON', emptyHistory: 'No entries yet — add your first session on the home page',
+    settingsLanguage: 'Interface language', settingsWeeklyGoal: 'Weekly goal (minutes)',
+    settingsSave: 'Save', settingsSaved: 'Saved ✓',
+    settingsDataTitle: 'Data', settingsReset: 'Reset all data',
+    settingsResetConfirm: 'Delete all entries? This cannot be undone.',
+    profileTitle: 'Profile', profileMemberSince: 'First session',
+    profileTotalSessions: 'Total sessions', profileTotalMinutes: 'Total minutes',
+    profileNoData: 'No data yet — start training on the home page',
+    profileSyncNote: 'Google sign-in and cross-device sync are coming in a future update.',
+    emptyRecent: 'No entries yet'
+  }
+};
+
+let uiLang = localStorage.getItem('typing-ui-lang') || 'ru';
+function t(key) { return (translations[uiLang] && translations[uiLang][key]) || translations.ru[key] || key; }
+
+function applyTranslations() {
+  document.documentElement.lang = uiLang;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+  });
+  document.querySelectorAll('.lang-opt[data-uilang]').forEach(el => {
+    el.classList.toggle('active', el.dataset.uilang === uiLang);
+  });
+}
+
+/* ===================== STATE ===================== */
 let selectedLang = 'en';
 let entries = [];
-const LANG_NAMES = { en: 'English', ru: 'Русский', kk: 'Қазақша' };
-const STORAGE_KEY = 'typing-entries';
+let settings = { weeklyGoalMinutes: 0 };
+let historyFilter = 'all';
+const LANG_NAMES_KEY = { en: { ru: 'English', kk: 'Ағылшын', en: 'English' }, ru: { ru: 'Русский', kk: 'Орыс', en: 'Russian' }, kk: { ru: 'Казахский', kk: 'Қазақша', en: 'Kazakh' } };
+const ENTRIES_KEY = 'typing-entries';
+const SETTINGS_KEY = 'typing-settings';
 
+function loadData() {
+  try {
+    const raw = localStorage.getItem(ENTRIES_KEY);
+    entries = raw ? JSON.parse(raw) : [];
+  } catch (e) { entries = []; }
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    settings = raw ? Object.assign({ weeklyGoalMinutes: 0 }, JSON.parse(raw)) : { weeklyGoalMinutes: 0 };
+  } catch (e) { settings = { weeklyGoalMinutes: 0 }; }
+}
+function saveEntries() {
+  try { localStorage.setItem(ENTRIES_KEY, JSON.stringify(entries)); } catch (e) { console.error(e); }
+}
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { console.error(e); }
+}
+
+/* ===================== NAVIGATION ===================== */
+document.getElementById('topnav').addEventListener('click', (e) => {
+  const btn = e.target.closest('.navbtn');
+  if (!btn) return;
+  goToPage(btn.dataset.page);
+});
+document.body.addEventListener('click', (e) => {
+  const link = e.target.closest('[data-page-link]');
+  if (!link) return;
+  goToPage(link.dataset.pageLink);
+});
+function goToPage(page) {
+  document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.page === page));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
+  window.scrollTo(0, 0);
+  render();
+}
+
+/* ===================== LANG PICKER (practice language) ===================== */
 document.getElementById('langPicker').addEventListener('click', (e) => {
   const key = e.target.closest('.key');
   if (!key) return;
   selectedLang = key.dataset.lang;
-  document.querySelectorAll('.key').forEach(k => k.classList.toggle('active', k.dataset.lang === selectedLang));
+  document.querySelectorAll('#langPicker .key').forEach(k => k.classList.toggle('active', k.dataset.lang === selectedLang));
 });
-document.querySelector('.key[data-lang="en"]').classList.add('active');
+document.querySelector('#langPicker .key[data-lang="en"]').classList.add('active');
 document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
 
-function loadEntries() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    entries = raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    entries = [];
-  }
+/* ===================== UI LANG PICKER (settings) ===================== */
+document.getElementById('uiLangPicker').addEventListener('click', (e) => {
+  const opt = e.target.closest('.lang-opt');
+  if (!opt) return;
+  uiLang = opt.dataset.uilang;
+  localStorage.setItem('typing-ui-lang', uiLang);
+  applyTranslations();
   render();
-}
+});
 
-function saveEntries() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  } catch (e) {
-    console.error('Storage error', e);
-  }
-}
-
-document.getElementById('addBtn').addEventListener('click', async () => {
+/* ===================== ADD ENTRY ===================== */
+document.getElementById('addBtn').addEventListener('click', () => {
   const errEl = document.getElementById('formError');
   const date = document.getElementById('fDate').value;
   const site = document.getElementById('fSite').value.trim();
   const min = parseFloat(document.getElementById('fMin').value);
   const wpm = parseFloat(document.getElementById('fWpm').value);
   const acc = parseFloat(document.getElementById('fAcc').value);
+  const comment = document.getElementById('fComment').value.trim();
 
   if (!date || !min || min <= 0) {
-    errEl.textContent = 'Укажите дату и количество минут';
+    errEl.textContent = t('errorRequired');
     errEl.style.display = 'block';
     return;
   }
@@ -254,7 +523,8 @@ document.getElementById('addBtn').addEventListener('click', async () => {
     date, site,
     minutes: Math.round(min),
     wpm: isNaN(wpm) ? null : Math.round(wpm),
-    accuracy: isNaN(acc) ? null : Math.round(acc)
+    accuracy: isNaN(acc) ? null : Math.round(acc),
+    comment: comment || null
   });
   entries.sort((a,b) => a.date.localeCompare(b.date));
   saveEntries();
@@ -262,6 +532,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   document.getElementById('fMin').value = '';
   document.getElementById('fWpm').value = '';
   document.getElementById('fAcc').value = '';
+  document.getElementById('fComment').value = '';
   render();
 });
 
@@ -271,10 +542,115 @@ function deleteEntry(id) {
   render();
 }
 
+/* ===================== HISTORY FILTER ===================== */
+document.getElementById('historyFilter').addEventListener('click', (e) => {
+  const opt = e.target.closest('.lang-opt');
+  if (!opt) return;
+  historyFilter = opt.dataset.filter;
+  document.querySelectorAll('#historyFilter .lang-opt').forEach(o => o.classList.toggle('active', o === opt));
+  renderFullLog();
+});
+
+/* ===================== EXPORT ===================== */
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'typing-tracker-export-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+/* ===================== SETTINGS: WEEKLY GOAL ===================== */
+document.getElementById('saveGoalBtn').addEventListener('click', () => {
+  const val = parseFloat(document.getElementById('goalInput').value);
+  settings.weeklyGoalMinutes = isNaN(val) || val < 0 ? 0 : Math.round(val);
+  saveSettings();
+  const hint = document.getElementById('goalSavedHint');
+  hint.style.display = 'block';
+  setTimeout(() => hint.style.display = 'none', 2000);
+  render();
+});
+
+/* ===================== SETTINGS: RESET ===================== */
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!confirm(t('settingsResetConfirm'))) return;
+  entries = [];
+  saveEntries();
+  render();
+});
+
+/* ===================== STREAK ===================== */
+function calcStreak() {
+  const days = [...new Set(entries.map(e => e.date))].sort().reverse();
+  if (!days.length) return 0;
+  const today = new Date(); today.setHours(0,0,0,0);
+  let cursor = new Date(today);
+  const todayStr = cursor.toISOString().slice(0,10);
+  if (days[0] !== todayStr) {
+    const yest = new Date(cursor); yest.setDate(yest.getDate() - 1);
+    const yestStr = yest.toISOString().slice(0,10);
+    if (days[0] !== yestStr) return 0;
+    cursor = yest;
+  }
+  let streak = 0;
+  for (const d of days) {
+    const cursorStr = cursor.toISOString().slice(0,10);
+    if (d === cursorStr) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else if (d < cursorStr) {
+      break;
+    }
+  }
+  return streak;
+}
+
+/* ===================== WEEKLY GOAL PROGRESS ===================== */
+function getWeekMinutes() {
+  const now = new Date();
+  const day = now.getDay(); // 0 sun .. 6 sat
+  const diffToMonday = day === 0 ? 6 : day - 1;
+  const monday = new Date(now); monday.setHours(0,0,0,0); monday.setDate(now.getDate() - diffToMonday);
+  const mondayStr = monday.toISOString().slice(0,10);
+  return entries.filter(e => e.date >= mondayStr).reduce((s,e) => s + e.minutes, 0);
+}
+
+/* ===================== RENDER ===================== */
 function render() {
+  renderStreak();
+  renderWeeklyGoal();
   renderStats();
   renderChart();
-  renderLog();
+  renderRecent();
+  renderFullLog();
+  renderProfile();
+  document.getElementById('goalInput').value = settings.weeklyGoalMinutes || '';
+  applyTranslations();
+}
+
+function renderStreak() {
+  const s = calcStreak();
+  document.getElementById('streakNum').textContent = s;
+  document.getElementById('streakFlame').style.opacity = s > 0 ? '1' : '0.3';
+}
+
+function renderWeeklyGoal() {
+  const el = document.getElementById('weeklyGoalContent');
+  const goal = settings.weeklyGoalMinutes;
+  const done = getWeekMinutes();
+  if (!goal) {
+    el.innerHTML = `<div class="empty">${t('weeklyGoalNotSet')}</div>`;
+    return;
+  }
+  const pct = Math.min(100, Math.round((done / goal) * 100));
+  el.innerHTML = `
+    <div class="goal-progress-track"><div class="goal-progress-fill" style="width:${pct}%"></div></div>
+    <div class="goal-text">${done} ${t('weeklyGoalProgress')} ${goal} ${t('weeklyGoalMin')} (${pct}%)</div>
+  `;
 }
 
 function renderStats() {
@@ -286,10 +662,10 @@ function renderStats() {
     const wpmList = list.filter(e => e.wpm !== null).map(e => e.wpm);
     const avgWpm = wpmList.length ? Math.round(wpmList.reduce((a,b)=>a+b,0)/wpmList.length) : null;
     return `<div class="stat-box" data-lang="${l}">
-      <div class="lang-name">${LANG_NAMES[l]}</div>
+      <div class="lang-name">${l.toUpperCase()}</div>
       <div class="big">${avgWpm !== null ? avgWpm : '—'}</div>
-      <div class="small">ср. WPM</div>
-      <div class="small">${totalMin} мин, ${list.length} зан.</div>
+      <div class="small">${t('avgWpmLabel')}</div>
+      <div class="small">${totalMin} / ${list.length}</div>
     </div>`;
   }).join('');
 }
@@ -298,7 +674,7 @@ function renderChart() {
   const el = document.getElementById('barChart');
   const withWpm = entries.filter(e => e.wpm !== null).slice(-8);
   if (!withWpm.length) {
-    el.innerHTML = '<div class="empty">Добавь WPM в записи, чтобы увидеть график</div>';
+    el.innerHTML = `<div class="empty">${t('emptyRecent')}</div>`;
     return;
   }
   const maxWpm = Math.max(...withWpm.map(e => e.wpm), 10);
@@ -313,27 +689,76 @@ function renderChart() {
   }).join('');
 }
 
-function renderLog() {
-  const el = document.getElementById('logList');
+function logItemHtml(e) {
+  const commentHtml = e.comment ? `<div class="comment">💬 ${escapeHtml(e.comment)}</div>` : '';
+  return `
+    <div class="log-item">
+      <div class="log-item-top">
+        <span class="tag" data-lang="${e.lang}">${e.lang}</span>
+        <span class="meta">${e.date}${e.site ? ' · ' + escapeHtml(e.site) : ''} · ${e.minutes} мин</span>
+        <span class="num">${e.wpm !== null ? e.wpm + ' wpm' : ''}${e.accuracy !== null ? ' / ' + e.accuracy + '%' : ''}</span>
+        <span class="del" data-id="${e.id}">&times;</span>
+      </div>
+      ${commentHtml}
+    </div>
+  `;
+}
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function renderRecent() {
+  const el = document.getElementById('recentList');
   if (!entries.length) {
-    el.innerHTML = '<div class="empty">Пока нет записей — добавь первую тренировку выше</div>';
+    el.innerHTML = `<div class="empty">${t('emptyRecent')}</div>`;
     return;
   }
-  const sorted = [...entries].sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
-  el.innerHTML = sorted.map(e => `
-    <div class="log-item">
-      <span class="tag" data-lang="${e.lang}">${e.lang}</span>
-      <span class="meta">${e.date}${e.site ? ' · ' + e.site : ''} · ${e.minutes} мин</span>
-      <span class="num">${e.wpm !== null ? e.wpm + ' wpm' : ''}${e.accuracy !== null ? ' / ' + e.accuracy + '%' : ''}</span>
-      <span class="del" data-id="${e.id}">&times;</span>
-    </div>
-  `).join('');
-  el.querySelectorAll('.del').forEach(d => {
+  const sorted = [...entries].sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id).slice(0, 3);
+  el.innerHTML = sorted.map(logItemHtml).join('');
+  attachDeleteHandlers(el);
+}
+
+function renderFullLog() {
+  const el = document.getElementById('fullLogList');
+  let list = entries;
+  if (historyFilter !== 'all') list = list.filter(e => e.lang === historyFilter);
+  if (!list.length) {
+    el.innerHTML = `<div class="empty">${t('emptyHistory')}</div>`;
+    return;
+  }
+  const sorted = [...list].sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
+  el.innerHTML = sorted.map(logItemHtml).join('');
+  attachDeleteHandlers(el);
+}
+
+function attachDeleteHandlers(container) {
+  container.querySelectorAll('.del').forEach(d => {
     d.addEventListener('click', () => deleteEntry(Number(d.dataset.id)));
   });
 }
 
-loadEntries();
+function renderProfile() {
+  const el = document.getElementById('profileContent');
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty">${t('profileNoData')}</div>`;
+    return;
+  }
+  const sorted = [...entries].sort((a,b) => a.date.localeCompare(b.date));
+  const firstDate = sorted[0].date;
+  const totalMinutes = entries.reduce((s,e) => s + e.minutes, 0);
+  el.innerHTML = `
+    <div class="profile-row"><span>${t('profileMemberSince')}</span><span class="v">${firstDate}</span></div>
+    <div class="profile-row"><span>${t('profileTotalSessions')}</span><span class="v">${entries.length}</span></div>
+    <div class="profile-row"><span>${t('profileTotalMinutes')}</span><span class="v">${totalMinutes}</span></div>
+  `;
+}
+
+/* ===================== INIT ===================== */
+loadData();
+applyTranslations();
+render();
 </script>
 
 <!--
@@ -341,6 +766,7 @@ loadEntries();
 Файл автономный — открывается напрямую в браузере, зависимостей нет.
 Данные хранятся в localStorage браузера (на устройстве пользователя),
 поэтому у каждого посетителя будет своя, отдельная история записей.
+Вход через Google и синхронизация между устройствами требуют backend (Firebase) — следующий этап.
 -->
 
 </body>
